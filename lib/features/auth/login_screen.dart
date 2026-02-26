@@ -1,9 +1,8 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart' hide LucideIcons;
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/theme/shadcn_ui.dart';
@@ -197,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: Row(
                                       children: [
                                         const Icon(
-                                          LucideIcons.alertCircle,
+                                          LucideIcons.circleAlert,
                                           size: 16,
                                           color: AppColors.destructive,
                                         ),

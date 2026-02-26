@@ -91,24 +91,64 @@ class AttendanceLogModel {
     }
   }
 
+  /// Helper to parse time as local wall-clock, ignoring any server-provided TZ
+  DateTime _parseWallClock(String? iso) {
+    if (iso == null || iso.isEmpty) return DateTime.now();
+    try {
+      // Strip 'Z' or '+HH:mm' to treat strings as local "wall-clock" digits
+      final rawValue = iso.replaceAll(RegExp(r'[Z+].*'), '');
+      return DateTime.parse(rawValue);
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
   /// Get formatted time from ISO string
   String? get formattedTimeIn {
     if (timeIn == null) return null;
-    try {
-      return DateFormat('h:mm a').format(DateTime.parse(timeIn!));
-    } catch (_) {
-      return timeIn;
-    }
+    return DateFormat('h:mm a').format(_parseWallClock(timeIn));
   }
 
   /// Get formatted time out from ISO string
   String? get formattedTimeOut {
     if (timeOut == null) return null;
-    try {
-      return DateFormat('h:mm a').format(DateTime.parse(timeOut!));
-    } catch (_) {
-      return timeOut;
-    }
+    return DateFormat('h:mm a').format(_parseWallClock(timeOut));
+  }
+
+  /// Get formatted lunch start
+  String? get formattedLunchStart {
+    if (lunchStart == null) return null;
+    return DateFormat('h:mm a').format(_parseWallClock(lunchStart));
+  }
+
+  /// Get formatted lunch end
+  String? get formattedLunchEnd {
+    if (lunchEnd == null) return null;
+    return DateFormat('h:mm a').format(_parseWallClock(lunchEnd));
+  }
+
+  /// Get formatted break start
+  String? get formattedBreakStart {
+    if (breakStart == null) return null;
+    return DateFormat('h:mm a').format(_parseWallClock(breakStart));
+  }
+
+  /// Get formatted break end
+  String? get formattedBreakEnd {
+    if (breakEnd == null) return null;
+    return DateFormat('h:mm a').format(_parseWallClock(breakEnd));
+  }
+
+  /// Get formatted created at
+  String? get formattedCreatedAt {
+    if (createdAt == null) return null;
+    return DateFormat('MMM dd, yyyy h:mm a').format(_parseWallClock(createdAt));
+  }
+
+  /// Get formatted updated at
+  String? get formattedUpdatedAt {
+    if (updatedAt == null) return null;
+    return DateFormat('MMM dd, yyyy h:mm a').format(_parseWallClock(updatedAt));
   }
 
   /// Get current status based on time entries

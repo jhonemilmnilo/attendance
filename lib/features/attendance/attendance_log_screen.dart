@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shadcn_ui/shadcn_ui.dart' hide LucideIcons;
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/models/attendance_log_model.dart';
 import '../../core/services/api_service.dart';
@@ -45,56 +44,95 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
   }
 
   Future<void> _pickTimeAndSubmit(String field) async {
-    final TimeOfDay? picked = await showTimePicker(
+    String? existingValue = _currentLog?.toJson()[field];
+    String inputTime;
+    if (existingValue != null && existingValue.isNotEmpty) {
+      try {
+        final rawValue = existingValue.replaceAll(RegExp(r'[Z+].*'), '');
+        inputTime = DateFormat('HH:mm').format(DateTime.parse(rawValue));
+      } catch (_) {
+        inputTime = DateFormat('HH:mm').format(DateTime.now());
+      }
+    } else {
+      inputTime = DateFormat('HH:mm').format(DateTime.now());
+    }
+
+    await showDialog(
       context: context,
-      initialTime: TimeOfDay.now(),
+      builder: (context) => AlertDialog(
+        title: const Text("Enter Time (HH:mm)"),
+        content: ShadInput(
+          initialValue: inputTime,
+          placeholder: const Text("18:53"),
+          onChanged: (v) => inputTime = v,
+          keyboardType: TextInputType.datetime,
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ShadButton(
+            onPressed: () async {
+              if (RegExp(r'^\d{2}:\d{2}$').hasMatch(inputTime)) {
+                final parts = inputTime.split(':');
+                final hour = int.parse(parts[0]);
+                final minute = int.parse(parts[1]);
+                final now = DateTime.now();
+                final dateTime = DateTime(
+                  now.year,
+                  now.month,
+                  now.day,
+                  hour,
+                  minute,
+                );
+
+                Navigator.pop(context);
+                await _submitAttendance(field, dateTime);
+              }
+            },
+            child: const Text("Confirm"),
+          ),
+        ],
+      ),
     );
+  }
 
-    if (picked != null && mounted) {
-      final now = DateTime.now();
-      final dateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        picked.hour,
-        picked.minute,
+  Future<void> _submitAttendance(String field, DateTime dateTime) async {
+    bool success = false;
+    final now = DateTime.now();
+    if (field == 'time_in') {
+      success = await _api.createLog(
+        userId: widget.userId,
+        departmentId: widget.departmentId,
+        date: now,
+        timeIn: dateTime,
       );
-
-      bool success = false;
-      if (field == 'time_in') {
+    } else {
+      if (_currentLog == null) {
         success = await _api.createLog(
           userId: widget.userId,
           departmentId: widget.departmentId,
           date: now,
-          timeIn: dateTime,
+          lunchStart: field == 'lunch_start' ? dateTime : null,
         );
       } else {
-        if (_currentLog == null) {
-          success = await _api.createLog(
-            userId: widget.userId,
-            departmentId: widget.departmentId,
-            date: now,
-            lunchStart: field == 'lunch_start' ? dateTime : null,
-          );
-        } else {
-          int logId = _currentLog!.logId;
-          success = await _api.updateLog(
-            logId: logId,
-            lunchStart: field == 'lunch_start' ? dateTime : null,
-            lunchEnd: field == 'lunch_end' ? dateTime : null,
-            breakStart: field == 'break_start' ? dateTime : null,
-            breakEnd: field == 'break_end' ? dateTime : null,
-            timeOut: field == 'time_out' ? dateTime : null,
-          );
-        }
+        success = await _api.updateLog(
+          logId: _currentLog!.logId,
+          lunchStart: field == 'lunch_start' ? dateTime : null,
+          lunchEnd: field == 'lunch_end' ? dateTime : null,
+          breakStart: field == 'break_start' ? dateTime : null,
+          breakEnd: field == 'break_end' ? dateTime : null,
+          timeOut: field == 'time_out' ? dateTime : null,
+        );
       }
+    }
 
-      if (success) {
-        _fetchTodayLog();
-        _showSnackBar('Attendance updated successfully');
-      } else {
-        _showSnackBar('Failed to update attendance');
-      }
+    if (success) {
+      _fetchTodayLog();
+      _showSnackBar('Attendance updated successfully');
+    } else {
+      _showSnackBar('Failed to update attendance');
     }
   }
 
@@ -109,7 +147,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _fetchTodayLog,
@@ -308,55 +346,51 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
   }
 
   Widget _buildTimestampRow(String label, String key) {
-    String? value = _currentLog?.toJson()[key];
     String display = "Not set";
     Color textColor = AppColors.mutedForeground;
 
-    if (value != null && value.isNotEmpty) {
-      try {
-        final dateTime = DateTime.parse(value);
-        display = DateFormat('MMM dd, yyyy h:mm a').format(dateTime);
+    if (_currentLog != null) {
+      final formatted = key == 'created_at'
+          ? _currentLog!.formattedCreatedAt
+          : _currentLog!.formattedUpdatedAt;
+      if (formatted != null) {
+        display = formatted;
         textColor = AppColors.primary;
-      } catch (_) {
-        display = value;
       }
     }
 
-    return InkWell(
-      onTap: () => _pickDateTimeAndSubmit(key, label),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: ShadTheme.of(context).textTheme.small.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.mutedForeground,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _pickDateTimeAndSubmit(key, label),
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: ShadTheme.of(context).textTheme.small.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.mutedForeground,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  display,
-                  style: ShadTheme.of(context).textTheme.small.copyWith(
-                    color: textColor,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 6),
+                  Text(
+                    display,
+                    style: ShadTheme.of(context).textTheme.small.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const Icon(
-              LucideIcons.calendarClock,
-              size: 20,
-              color: AppColors.mutedForeground,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -367,42 +401,70 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
       return;
     }
 
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (pickedDate == null) return;
-
-    final TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (pickedTime == null) return;
-
-    final dateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    bool success = await _api.updateLog(
-      logId: _currentLog!.logId,
-      createdAt: field == 'created_at' ? dateTime : null,
-      updatedAt: field == 'updated_at' ? dateTime : null,
-    );
-
-    if (success) {
-      _fetchTodayLog();
-      _showSnackBar('$label updated successfully');
+    String? existingValue = _currentLog?.toJson()[field];
+    String inputStr;
+    if (existingValue != null && existingValue.isNotEmpty) {
+      try {
+        final rawValue = existingValue.replaceAll(RegExp(r'[Z+].*'), '');
+        inputStr = DateFormat(
+          'yyyy-MM-dd HH:mm',
+        ).format(DateTime.parse(rawValue));
+      } catch (_) {
+        inputStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+      }
     } else {
-      _showSnackBar('Failed to update ${label.toLowerCase()}');
+      inputStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit $label"),
+        content: ShadInput(
+          initialValue: inputStr,
+          placeholder: const Text("YYYY-MM-DD HH:mm"),
+          onChanged: (v) => inputStr = v,
+          keyboardType: TextInputType.datetime,
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ShadButton(
+            onPressed: () async {
+              try {
+                final parts = inputStr.split(' ');
+                final dateParts = parts[0].split('-');
+                final timeParts = parts[1].split(':');
+                final dateTime = DateTime(
+                  int.parse(dateParts[0]),
+                  int.parse(dateParts[1]),
+                  int.parse(dateParts[2]),
+                  int.parse(timeParts[0]),
+                  int.parse(timeParts[1]),
+                );
+
+                Navigator.pop(context);
+                bool success = await _api.updateLog(
+                  logId: _currentLog!.logId,
+                  createdAt: field == 'created_at' ? dateTime : null,
+                  updatedAt: field == 'updated_at' ? dateTime : null,
+                );
+
+                if (success) {
+                  _fetchTodayLog();
+                  _showSnackBar('$label updated successfully');
+                } else {
+                  _showSnackBar('Failed to update ${label.toLowerCase()}');
+                }
+              } catch (_) {}
+            },
+            child: const Text("Confirm"),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTimeEntryRow(String label, String key, IconData icon) {
@@ -410,10 +472,13 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     String display = "Set time";
     Color textColor = AppColors.mutedForeground;
     bool hasValue = false;
+    DateTime? parsedDateTime;
 
     if (value != null && value.isNotEmpty) {
       try {
-        display = DateFormat('h:mm a').format(DateTime.parse(value));
+        final rawValue = value.replaceAll(RegExp(r'[Z+].*'), '');
+        parsedDateTime = DateTime.parse(rawValue);
+        display = DateFormat('h:mm a').format(parsedDateTime);
         textColor = AppColors.primary;
         hasValue = true;
       } catch (_) {

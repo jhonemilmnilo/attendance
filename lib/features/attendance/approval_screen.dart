@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart' hide LucideIcons;
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/models/approval_model.dart';
 import '../../core/services/api_service.dart';
@@ -268,11 +267,11 @@ class _ApprovalScreenState extends State<ApprovalScreen> {
     switch (status.toLowerCase()) {
       case 'approved':
         color = AppColors.success;
-        icon = LucideIcons.checkCircle;
+        icon = LucideIcons.circleCheck;
         break;
       case 'rejected':
         color = AppColors.destructive;
-        icon = LucideIcons.xCircle;
+        icon = LucideIcons.circleX;
         break;
       default:
         color = AppColors.warning;

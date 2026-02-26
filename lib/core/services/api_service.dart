@@ -11,6 +11,14 @@ import '../models/user_model.dart';
 class ApiService {
   static const String baseUrl = 'http://goatedcodoer:8090';
 
+  /// Formats a DateTime to ISO 8601 string WITH timezone offset.
+  /// This prevents the server from misinterpreting local time as UTC.
+  /// e.g. "2026-02-17T12:00:00.000+08:00" instead of "2026-02-17T12:00:00.000"
+  String _formatWithOffset(DateTime dt) {
+    // Return raw ISO string without TZ indicator to treat as local "wall-clock" time
+    return dt.toIso8601String();
+  }
+
   // ==================== Authentication ====================
 
   /// Authenticate user with email and password
@@ -82,12 +90,12 @@ class ApiService {
       "status": "On Time",
     };
 
-    if (timeIn != null) body['time_in'] = timeIn.toIso8601String();
-    if (lunchStart != null) body['lunch_start'] = lunchStart.toIso8601String();
-    if (lunchEnd != null) body['lunch_end'] = lunchEnd.toIso8601String();
-    if (breakStart != null) body['break_start'] = breakStart.toIso8601String();
-    if (breakEnd != null) body['break_end'] = breakEnd.toIso8601String();
-    if (timeOut != null) body['time_out'] = timeOut.toIso8601String();
+    if (timeIn != null) body['time_in'] = _formatWithOffset(timeIn);
+    if (lunchStart != null) body['lunch_start'] = _formatWithOffset(lunchStart);
+    if (lunchEnd != null) body['lunch_end'] = _formatWithOffset(lunchEnd);
+    if (breakStart != null) body['break_start'] = _formatWithOffset(breakStart);
+    if (breakEnd != null) body['break_end'] = _formatWithOffset(breakEnd);
+    if (timeOut != null) body['time_out'] = _formatWithOffset(timeOut);
 
     try {
       final response = await http.post(
@@ -117,14 +125,14 @@ class ApiService {
     final url = Uri.parse('$baseUrl/items/attendance_log/$logId');
 
     final Map<String, dynamic> body = {};
-    if (timeIn != null) body['time_in'] = timeIn.toIso8601String();
-    if (lunchStart != null) body['lunch_start'] = lunchStart.toIso8601String();
-    if (lunchEnd != null) body['lunch_end'] = lunchEnd.toIso8601String();
-    if (breakStart != null) body['break_start'] = breakStart.toIso8601String();
-    if (breakEnd != null) body['break_end'] = breakEnd.toIso8601String();
-    if (timeOut != null) body['time_out'] = timeOut.toIso8601String();
-    if (createdAt != null) body['created_at'] = createdAt.toIso8601String();
-    if (updatedAt != null) body['updated_at'] = updatedAt.toIso8601String();
+    if (timeIn != null) body['time_in'] = _formatWithOffset(timeIn);
+    if (lunchStart != null) body['lunch_start'] = _formatWithOffset(lunchStart);
+    if (lunchEnd != null) body['lunch_end'] = _formatWithOffset(lunchEnd);
+    if (breakStart != null) body['break_start'] = _formatWithOffset(breakStart);
+    if (breakEnd != null) body['break_end'] = _formatWithOffset(breakEnd);
+    if (timeOut != null) body['time_out'] = _formatWithOffset(timeOut);
+    if (createdAt != null) body['created_at'] = _formatWithOffset(createdAt);
+    if (updatedAt != null) body['updated_at'] = _formatWithOffset(updatedAt);
 
     try {
       final response = await http.patch(
