@@ -45,55 +45,119 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
 
   Future<void> _pickTimeAndSubmit(String field) async {
     String? existingValue = _currentLog?.toJson()[field];
-    String inputTime;
+    int initialHour;
+    int initialMinute;
+    String selectedPeriod = 'AM';
+
     if (existingValue != null && existingValue.isNotEmpty) {
       try {
         final rawValue = existingValue.replaceAll(RegExp(r'[Z+].*'), '');
-        inputTime = DateFormat('HH:mm').format(DateTime.parse(rawValue));
+        final dt = DateTime.parse(rawValue);
+        initialHour = dt.hour;
+        initialMinute = dt.minute;
+        if (initialHour >= 12) {
+          selectedPeriod = 'PM';
+          if (initialHour > 12) initialHour -= 12;
+        } else if (initialHour == 0) {
+          initialHour = 12;
+        }
       } catch (_) {
-        inputTime = DateFormat('HH:mm').format(DateTime.now());
+        initialHour = 8;
+        initialMinute = 0;
       }
     } else {
-      inputTime = DateFormat('HH:mm').format(DateTime.now());
+      final now = DateTime.now();
+      initialHour = now.hour;
+      initialMinute = now.minute;
+      if (initialHour >= 12) {
+        selectedPeriod = 'PM';
+        if (initialHour > 12) initialHour -= 12;
+      } else if (initialHour == 0) {
+        initialHour = 12;
+      }
     }
+
+    String timeInput =
+        "${initialHour.toString().padLeft(2, '0')}:${initialMinute.toString().padLeft(2, '0')}";
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Enter Time (HH:mm)"),
-        content: ShadInput(
-          initialValue: inputTime,
-          placeholder: const Text("18:53"),
-          onChanged: (v) => inputTime = v,
-          keyboardType: TextInputType.datetime,
-        ),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: Text("Edit ${field.replaceAll('_', ' ').toUpperCase()}"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ShadInput(
+                initialValue: timeInput,
+                placeholder: const Text("1:00"),
+                onChanged: (v) => timeInput = v,
+                keyboardType: TextInputType.datetime,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  selectedPeriod == 'AM'
+                      ? ShadButton(
+                          onPressed: () =>
+                              setModalState(() => selectedPeriod = 'AM'),
+                          child: const Text("AM"),
+                        )
+                      : ShadButton.outline(
+                          onPressed: () =>
+                              setModalState(() => selectedPeriod = 'AM'),
+                          child: const Text("AM"),
+                        ),
+                  const SizedBox(width: 8),
+                  selectedPeriod == 'PM'
+                      ? ShadButton(
+                          onPressed: () =>
+                              setModalState(() => selectedPeriod = 'PM'),
+                          child: const Text("PM"),
+                        )
+                      : ShadButton.outline(
+                          onPressed: () =>
+                              setModalState(() => selectedPeriod = 'PM'),
+                          child: const Text("PM"),
+                        ),
+                ],
+              ),
+            ],
           ),
-          ShadButton(
-            onPressed: () async {
-              if (RegExp(r'^\d{2}:\d{2}$').hasMatch(inputTime)) {
-                final parts = inputTime.split(':');
-                final hour = int.parse(parts[0]);
-                final minute = int.parse(parts[1]);
-                final now = DateTime.now();
-                final dateTime = DateTime(
-                  now.year,
-                  now.month,
-                  now.day,
-                  hour,
-                  minute,
-                );
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ShadButton(
+              onPressed: () async {
+                if (RegExp(r'^\d{1,2}:\d{2}$').hasMatch(timeInput)) {
+                  final parts = timeInput.split(':');
+                  int hour = int.parse(parts[0]);
+                  final minute = int.parse(parts[1]);
 
-                Navigator.pop(context);
-                await _submitAttendance(field, dateTime);
-              }
-            },
-            child: const Text("Confirm"),
-          ),
-        ],
+                  // Convert to 24-hour format
+                  if (selectedPeriod == 'PM' && hour < 12) hour += 12;
+                  if (selectedPeriod == 'AM' && hour == 12) hour = 0;
+
+                  final now = DateTime.now();
+                  final dateTime = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                    hour,
+                    minute,
+                  );
+
+                  Navigator.pop(context);
+                  await _submitAttendance(field, dateTime);
+                }
+              },
+              child: const Text("Confirm"),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -101,31 +165,30 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
   Future<void> _submitAttendance(String field, DateTime dateTime) async {
     bool success = false;
     final now = DateTime.now();
-    if (field == 'time_in') {
+
+    if (_currentLog == null) {
+      // If no log exists for today, we must create one
       success = await _api.createLog(
         userId: widget.userId,
         departmentId: widget.departmentId,
         date: now,
-        timeIn: dateTime,
+        timeIn: field == 'time_in' ? dateTime : null,
+        lunchStart: field == 'lunch_start' ? dateTime : null,
+        breakStart: field == 'break_start' ? dateTime : null,
       );
     } else {
-      if (_currentLog == null) {
-        success = await _api.createLog(
-          userId: widget.userId,
-          departmentId: widget.departmentId,
-          date: now,
-          lunchStart: field == 'lunch_start' ? dateTime : null,
-        );
-      } else {
-        success = await _api.updateLog(
-          logId: _currentLog!.logId,
-          lunchStart: field == 'lunch_start' ? dateTime : null,
-          lunchEnd: field == 'lunch_end' ? dateTime : null,
-          breakStart: field == 'break_start' ? dateTime : null,
-          breakEnd: field == 'break_end' ? dateTime : null,
-          timeOut: field == 'time_out' ? dateTime : null,
-        );
-      }
+      // If log exists, update it regardless of the field (including time_in)
+      success = await _api.updateLog(
+        logId: _currentLog!.logId,
+        timeIn: field == 'time_in' ? dateTime : null,
+        lunchStart: field == 'lunch_start' ? dateTime : null,
+        lunchEnd: field == 'lunch_end' ? dateTime : null,
+        breakStart: field == 'break_start' ? dateTime : null,
+        breakEnd: field == 'break_end' ? dateTime : null,
+        timeOut: field == 'time_out' ? dateTime : null,
+        createdAt: field == 'created_at' ? dateTime : null,
+        updatedAt: field == 'updated_at' ? dateTime : null,
+      );
     }
 
     if (success) {
@@ -402,67 +465,127 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     }
 
     String? existingValue = _currentLog?.toJson()[field];
-    String inputStr;
+    DateTime initialDt = DateTime.now();
+
     if (existingValue != null && existingValue.isNotEmpty) {
       try {
         final rawValue = existingValue.replaceAll(RegExp(r'[Z+].*'), '');
-        inputStr = DateFormat(
-          'yyyy-MM-dd HH:mm',
-        ).format(DateTime.parse(rawValue));
-      } catch (_) {
-        inputStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-      }
-    } else {
-      inputStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+        initialDt = DateTime.parse(rawValue);
+      } catch (_) {}
     }
+
+    int initialHour = initialDt.hour;
+    String selectedPeriod = 'AM';
+    if (initialHour >= 12) {
+      selectedPeriod = 'PM';
+      if (initialHour > 12) initialHour -= 12;
+    } else if (initialHour == 0) {
+      initialHour = 12;
+    }
+
+    String dateInput = DateFormat('yyyy-MM-dd').format(initialDt);
+    String timeInput =
+        "${initialHour.toString().padLeft(2, '0')}:${initialDt.minute.toString().padLeft(2, '0')}";
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Edit $label"),
-        content: ShadInput(
-          initialValue: inputStr,
-          placeholder: const Text("YYYY-MM-DD HH:mm"),
-          onChanged: (v) => inputStr = v,
-          keyboardType: TextInputType.datetime,
-        ),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: Text("Edit $label"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Date (YYYY-MM-DD)",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                ShadInput(
+                  initialValue: dateInput,
+                  placeholder: const Text("2024-02-26"),
+                  onChanged: (v) => dateInput = v,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Time (HH:mm)",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                ShadInput(
+                  initialValue: timeInput,
+                  placeholder: const Text("1:00"),
+                  onChanged: (v) => timeInput = v,
+                  keyboardType: TextInputType.datetime,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    selectedPeriod == 'AM'
+                        ? ShadButton(
+                            onPressed: () =>
+                                setModalState(() => selectedPeriod = 'AM'),
+                            child: const Text("AM"),
+                          )
+                        : ShadButton.outline(
+                            onPressed: () =>
+                                setModalState(() => selectedPeriod = 'AM'),
+                            child: const Text("AM"),
+                          ),
+                    const SizedBox(width: 8),
+                    selectedPeriod == 'PM'
+                        ? ShadButton(
+                            onPressed: () =>
+                                setModalState(() => selectedPeriod = 'PM'),
+                            child: const Text("PM"),
+                          )
+                        : ShadButton.outline(
+                            onPressed: () =>
+                                setModalState(() => selectedPeriod = 'PM'),
+                            child: const Text("PM"),
+                          ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          ShadButton(
-            onPressed: () async {
-              try {
-                final parts = inputStr.split(' ');
-                final dateParts = parts[0].split('-');
-                final timeParts = parts[1].split(':');
-                final dateTime = DateTime(
-                  int.parse(dateParts[0]),
-                  int.parse(dateParts[1]),
-                  int.parse(dateParts[2]),
-                  int.parse(timeParts[0]),
-                  int.parse(timeParts[1]),
-                );
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ShadButton(
+              onPressed: () async {
+                try {
+                  final dateParts = dateInput.split('-');
+                  final timeParts = timeInput.split(':');
 
-                Navigator.pop(context);
-                bool success = await _api.updateLog(
-                  logId: _currentLog!.logId,
-                  createdAt: field == 'created_at' ? dateTime : null,
-                  updatedAt: field == 'updated_at' ? dateTime : null,
-                );
+                  int hour = int.parse(timeParts[0]);
+                  final minute = int.parse(timeParts[1]);
 
-                if (success) {
-                  _fetchTodayLog();
-                  _showSnackBar('$label updated successfully');
-                } else {
-                  _showSnackBar('Failed to update ${label.toLowerCase()}');
+                  if (selectedPeriod == 'PM' && hour < 12) hour += 12;
+                  if (selectedPeriod == 'AM' && hour == 12) hour = 0;
+
+                  final dateTime = DateTime(
+                    int.parse(dateParts[0]),
+                    int.parse(dateParts[1]),
+                    int.parse(dateParts[2]),
+                    hour,
+                    minute,
+                  );
+
+                  Navigator.pop(context);
+                  await _submitAttendance(field, dateTime);
+                } catch (_) {
+                  _showSnackBar('Invalid date or time format');
                 }
-              } catch (_) {}
-            },
-            child: const Text("Confirm"),
-          ),
-        ],
+              },
+              child: const Text("Confirm"),
+            ),
+          ],
+        ),
       ),
     );
   }

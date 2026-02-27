@@ -5,11 +5,13 @@ import 'package:intl/intl.dart';
 
 import '../models/approval_model.dart';
 import '../models/attendance_log_model.dart';
+import '../models/department_schedule_model.dart';
+import '../models/payroll_employee_model.dart';
 import '../models/user_model.dart';
 
 /// API Service for handling all backend communications
 class ApiService {
-  static const String baseUrl = 'http://goatedcodoer:8090';
+  static const String baseUrl = 'https://goatedcodoer.tail054015.ts.net/vertex';
 
   /// Formats a DateTime to ISO 8601 string WITH timezone offset.
   /// This prevents the server from misinterpreting local time as UTC.
@@ -41,6 +43,23 @@ class ApiService {
       }
     } catch (e) {
       print("Login Error: $e");
+    }
+    return null;
+  }
+
+  /// Get specific user by ID
+  Future<UserModel?> getUser(int userId) async {
+    final url = Uri.parse('$baseUrl/items/user/$userId');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return UserModel.fromJson(data['data']);
+        }
+      }
+    } catch (e) {
+      print("Get User Error: $e");
     }
     return null;
   }
@@ -177,7 +196,7 @@ class ApiService {
   /// Get pending approvals for a user
   Future<List<ApprovalModel>> getApprovals(int userId) async {
     final url = Uri.parse(
-      'http://goatedcodoer:8090/items/attendance_approval?filter[status][_eq]=approved&filter[employee_id][_eq]=$userId&limit=-1&sort=-date_schedule',
+      '$baseUrl/items/attendance_approval?filter[status][_eq]=approved&filter[employee_id][_eq]=$userId&limit=-1&sort=-date_schedule',
     );
     try {
       final response = await http.get(url);
@@ -197,9 +216,7 @@ class ApiService {
 
   /// Update an approval record
   Future<bool> updateApproval(int approvalId, Map<String, dynamic> data) async {
-    final url = Uri.parse(
-      'http://goatedcodoer:8090/items/attendance_approval/$approvalId',
-    );
+    final url = Uri.parse('$baseUrl/items/attendance_approval/$approvalId');
     try {
       final response = await http.patch(
         url,
@@ -211,5 +228,93 @@ class ApiService {
       print("Update Approval Error: $e");
       return false;
     }
+  }
+
+  // ==================== Payroll ====================
+
+  /// Get payroll records for a specific user
+  Future<List<PayrollEmployeeModel>> getPayrollHistory(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/payroll_run_employee?filter[user_id][_eq]=$userId&sort=-cutoff_end&limit=-1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return (data['data'] as List)
+              .map((e) => PayrollEmployeeModel.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Get Payroll History Error: $e");
+    }
+    return [];
+  }
+
+  /// Get specific payroll detail
+  Future<PayrollEmployeeModel?> getPayrollDetail(int payrollId) async {
+    final url = Uri.parse('$baseUrl/items/payroll_run_employee/$payrollId');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return PayrollEmployeeModel.fromJson(data['data']);
+        }
+      }
+    } catch (e) {
+      print("Get Payroll Detail Error: $e");
+    }
+    return null;
+  }
+
+  // ==================== Department Schedule ====================
+
+  /// Get department schedule
+  Future<DepartmentScheduleModel?> getDepartmentSchedule(
+    int departmentId,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/items/department_schedule?filter[department_id][_eq]=$departmentId&limit=1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && (data['data'] as List).isNotEmpty) {
+          return DepartmentScheduleModel.fromJson(data['data'][0]);
+        }
+      }
+    } catch (e) {
+      print("Get Schedule Error: $e");
+    }
+    return null;
+  }
+
+  // ==================== Overtime ====================
+
+  /// Get approved overtime requests for a period
+  Future<List<Map<String, dynamic>>> getOvertimeRequests(
+    int userId,
+    String startDate,
+    String endDate,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/items/overtime_request?filter[user_id][_eq]=$userId&filter[status][_eq]=approved&filter[request_date][_between]=$startDate,$endDate',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return List<Map<String, dynamic>>.from(data['data']);
+        }
+      }
+    } catch (e) {
+      print("Get OT Error: $e");
+    }
+    return [];
   }
 }

@@ -4,8 +4,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/models/attendance_log_model.dart';
+import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/theme/shadcn_ui.dart';
+import '../payroll/payroll_history_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int userId;
@@ -24,12 +26,28 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ApiService _api = ApiService();
   AttendanceLogModel? _currentLog;
+  UserModel? _fullUser;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchTodayLog();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
+    await Future.wait([_fetchTodayLog(), _fetchUserInfo()]);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchUserInfo() async {
+    final user = await _api.getUser(widget.userId);
+    if (mounted && user != null) {
+      setState(() => _fullUser = user);
+    }
   }
 
   Future<void> _fetchTodayLog() async {
@@ -38,7 +56,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) {
       setState(() {
         _currentLog = log;
-        _isLoading = false;
       });
     }
   }
@@ -48,38 +65,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _fetchTodayLog,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildWelcomeSection().animate().fadeIn().slideX(
-                        begin: -0.1,
-                      ),
-                      const SizedBox(height: 32),
-                      _buildStatusCard()
+        child: RefreshIndicator(
+          onRefresh: _fetchData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildWelcomeSection().animate().fadeIn().slideX(begin: -0.1),
+                const SizedBox(height: 32),
+                _isLoading
+                    ? _buildStatusCardSkeleton()
+                    : _buildStatusCard()
                           .animate()
                           .fadeIn(delay: 200.ms)
                           .scale(begin: const Offset(0.9, 0.9)),
-                      const SizedBox(height: 32),
-                      _buildQuickActions()
-                          .animate()
-                          .fadeIn(delay: 400.ms)
-                          .slideY(begin: 0.1),
-                      const SizedBox(height: 32),
-                      _buildTodaySummary()
+                const SizedBox(height: 32),
+                _buildQuickActions()
+                    .animate()
+                    .fadeIn(delay: 400.ms)
+                    .slideY(begin: 0.1),
+                const SizedBox(height: 32),
+                _isLoading
+                    ? _buildTodaySummarySkeleton()
+                    : _buildTodaySummary()
                           .animate()
                           .fadeIn(delay: 600.ms)
                           .slideY(begin: 0.1),
-                    ],
-                  ),
-                ),
-              ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -88,34 +105,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Hello, ${widget.userName}",
-              style: ShadTheme.of(context).textTheme.h2.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Hello, ${widget.userName}",
+                style: ShadTheme.of(context).textTheme.h2.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(
-                  LucideIcons.calendar,
-                  size: 14,
-                  color: AppColors.mutedForeground,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  DateFormat('EEEE, MMM d').format(DateTime.now()),
-                  style: ShadTheme.of(
-                    context,
-                  ).textTheme.muted.copyWith(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ],
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    LucideIcons.calendar,
+                    size: 14,
+                    color: AppColors.mutedForeground,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('EEEE, MMM d').format(DateTime.now()),
+                    style: ShadTheme.of(
+                      context,
+                    ).textTheme.muted.copyWith(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         CircleAvatar(
           radius: 24,
@@ -243,6 +263,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        _buildActionCard(
+          icon: LucideIcons.banknote,
+          label: 'Payroll',
+          subtitle: 'View Payslips & Salary History',
+          color: Colors.green,
+          onTap: () {
+            if (_fullUser == null) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PayrollHistoryScreen(user: _fullUser!),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -376,5 +412,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildStatusCardSkeleton() {
+    return Container(
+          height: 180,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.grey.withOpacity(0.1)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: 100,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: 180,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate(onPlay: (c) => c.repeat())
+        .shimmer(duration: 2.seconds, color: Colors.white.withOpacity(0.4));
+  }
+
+  Widget _buildTodaySummarySkeleton() {
+    return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 150,
+              height: 20,
+              margin: const EdgeInsets.only(left: 4, bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border.withOpacity(0.5)),
+              ),
+            ),
+          ],
+        )
+        .animate(onPlay: (c) => c.repeat())
+        .shimmer(duration: 2.seconds, color: Colors.grey.withAlpha(20));
   }
 }

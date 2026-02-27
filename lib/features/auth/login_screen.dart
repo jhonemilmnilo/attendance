@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/services/api_service.dart';
 import '../../core/theme/shadcn_ui.dart';
+import '../../main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (prefs.getBool('remember_me') == true && mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const _DummyDashboard()),
+        MaterialPageRoute(builder: (context) => const MainShell()),
       );
     }
   }
@@ -66,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const _DummyDashboard()),
+          MaterialPageRoute(builder: (context) => const MainShell()),
         );
       } else if (mounted) {
         setState(() => _errorMessage = 'Invalid email or password');
@@ -329,14 +330,5 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-  }
-}
-
-class _DummyDashboard extends StatelessWidget {
-  const _DummyDashboard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text("Dashboard - Loading...")));
   }
 }
