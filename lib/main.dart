@@ -10,6 +10,7 @@ import 'features/attendance/overtime_screen.dart';
 import 'features/attendance/undertime_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/payroll/employee_payroll_search_screen.dart';
 import 'features/payroll/payroll_history_screen.dart';
 import 'core/models/user_model.dart';
 import 'core/services/api_service.dart';
@@ -275,6 +276,20 @@ class _MainShellState extends State<MainShell> {
                     ),
                     const SizedBox(height: 12),
 
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.search,
+                      label: 'Employee Search',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const EmployeePayrollSearchScreen(),
+                          ),
+                        );
+                      },
+                    ),
                     _buildShadDrawerItem(
                       icon: LucideIcons.banknote,
                       label: 'Payroll',

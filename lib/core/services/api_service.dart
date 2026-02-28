@@ -306,6 +306,29 @@ class ApiService {
     return null;
   }
 
+  /// Get all payroll records for all employees
+  Future<List<PayrollEmployeeModel>> getAllPayrollRecords() async {
+    final url = Uri.parse(
+      '$baseUrl/items/payroll_run_employee'
+      '?fields=*,payroll_run_id.status'
+      '&sort=-cutoff_end&limit=-1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return (data['data'] as List)
+              .map((e) => PayrollEmployeeModel.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Get All Payroll Records Error: $e");
+    }
+    return [];
+  }
+
   // ==================== Department Schedule ====================
 
   /// Get department schedule
