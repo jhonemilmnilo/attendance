@@ -96,9 +96,10 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
+          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.primary),
           onPressed: () => Navigator.pop(context),
         ),
+        automaticallyImplyLeading: false,
         title: const Text('Overtime Requests'),
         centerTitle: true,
         actions: [

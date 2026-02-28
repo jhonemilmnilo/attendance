@@ -159,6 +159,25 @@ class AttendanceLogModel {
     if (timeIn != null) return AttendanceStatus.working;
     return AttendanceStatus.notClockedIn;
   }
+
+  /// Get the time when the current status started
+  DateTime? get statusStartTime {
+    switch (currentStatus) {
+      case AttendanceStatus.clockedOut:
+        return timeOut != null ? _parseWallClock(timeOut) : null;
+      case AttendanceStatus.onLunch:
+        return lunchStart != null ? _parseWallClock(lunchStart) : null;
+      case AttendanceStatus.onBreak:
+        return breakStart != null ? _parseWallClock(breakStart) : null;
+      case AttendanceStatus.working:
+        // If they just ended a break or lunch, it technically continues the "working" day,
+        // but for a "status" card, showing when they started this block (e.g. back from lunch) is useful.
+        // However, usually we want to see when they originally clocked in for "Working".
+        return timeIn != null ? _parseWallClock(timeIn) : null;
+      case AttendanceStatus.notClockedIn:
+        return null;
+    }
+  }
 }
 
 /// Enum for attendance status

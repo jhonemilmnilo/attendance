@@ -5,6 +5,7 @@ import 'widgets/salary_estimation_view.dart';
 import '../../core/models/payroll_employee_model.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
+import '../../core/theme/shadcn_ui.dart';
 import 'payslip_detail_screen.dart';
 
 class PayrollHistoryScreen extends StatefulWidget {
@@ -57,6 +58,11 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(LucideIcons.arrowLeft, color: AppColors.primary),
+            onPressed: () => Navigator.pop(context),
+          ),
+          automaticallyImplyLeading: false,
           title: const Text('Payroll'),
           centerTitle: true,
           bottom: TabBar(

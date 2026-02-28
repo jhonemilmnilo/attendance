@@ -94,9 +94,10 @@ class _UndertimeScreenState extends State<UndertimeScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
+          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.primary),
           onPressed: () => Navigator.pop(context),
         ),
+        automaticallyImplyLeading: false,
         title: const Text('Undertime Requests'),
         actions: [
           IconButton(

@@ -99,6 +99,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
           icon: const Icon(LucideIcons.arrowLeft, color: AppColors.primary),
           onPressed: () => Navigator.pop(context),
         ),
+        automaticallyImplyLeading: false,
         title: const Text('Leave Requests'),
         centerTitle: true,
         actions: [
