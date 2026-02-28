@@ -9,6 +9,7 @@ class PayrollEmployeeModel {
   final String? positionName;
   final String? departmentNameSnapshot;
   final int payrollRunId;
+  final String? payrollRunStatus;
   final DateTime cutoffStart;
   final DateTime cutoffEnd;
   final String? cutoffLabel;
@@ -147,9 +148,19 @@ class PayrollEmployeeModel {
     this.createdBy,
     this.updatedDate,
     this.updatedBy,
+    this.payrollRunStatus,
   });
 
   factory PayrollEmployeeModel.fromJson(Map<String, dynamic> json) {
+    int runId = 0;
+    String? runStatus;
+    if (json['payroll_run_id'] is Map) {
+      runId = json['payroll_run_id']['payroll_run_id'] ?? 0;
+      runStatus = json['payroll_run_id']['status'];
+    } else {
+      runId = json['payroll_run_id'] ?? 0;
+    }
+
     return PayrollEmployeeModel(
       id: json['id'],
       userId: json['user_id'],
@@ -158,7 +169,8 @@ class PayrollEmployeeModel {
       departmentName: json['department_name'],
       positionName: json['position_name'],
       departmentNameSnapshot: json['department_name_snapshot'],
-      payrollRunId: json['payroll_run_id'],
+      payrollRunId: runId,
+      payrollRunStatus: runStatus,
       cutoffStart: DateTime.parse(json['cutoff_start']),
       cutoffEnd: DateTime.parse(json['cutoff_end']),
       cutoffLabel: json['cutoff_label'],

@@ -5,8 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'features/attendance/approval_screen.dart';
 import 'features/attendance/attendance_log_screen.dart';
 import 'features/attendance/history_screen.dart';
+import 'features/attendance/leave_screen.dart';
+import 'features/attendance/overtime_screen.dart';
+import 'features/attendance/undertime_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/payroll/payroll_history_screen.dart';
+import 'core/models/user_model.dart';
+import 'core/services/api_service.dart';
 import 'core/theme/shadcn_ui.dart';
 
 void main() {
@@ -93,12 +99,30 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userId = prefs.getInt('user_id');
-      _deptId = prefs.getInt('department_id');
-      _userName = prefs.getString('user_name') ?? 'User';
-    });
+    final userId = prefs.getInt('user_id');
+    final deptId = prefs.getInt('department_id');
+    final userName = prefs.getString('user_name') ?? 'User';
+
+    if (mounted) {
+      setState(() {
+        _userId = userId;
+        _deptId = deptId;
+        _userName = userName;
+      });
+    }
+
+    if (userId != null) {
+      final api = ApiService();
+      final user = await api.getUser(userId);
+      if (mounted && user != null) {
+        setState(() {
+          _fullUser = user;
+        });
+      }
+    }
   }
+
+  UserModel? _fullUser;
 
   void _onTabSelected(int index) {
     setState(() => _currentIndex = index);
@@ -119,41 +143,239 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_getTitle()),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _handleLogout,
-            tooltip: 'Logout',
+        leading: Builder(
+          builder: (context) => Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: GestureDetector(
+              onTap: () => Scaffold.of(context).openDrawer(),
+              child: CircleAvatar(
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                child: const Icon(
+                  Icons.person,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+            ),
           ),
-        ],
+        ),
+      ),
+      drawer: Drawer(
+        child: Container(
+          color: AppColors.surface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Premium Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 64, 24, 32),
+                decoration: const BoxDecoration(color: AppColors.primary),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                      ),
+                      child: CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _userName.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${_userId ?? "---"}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Navigation
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  children: [
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.layoutDashboard,
+                      label: 'Dashboard',
+                      onTap: () {
+                        _onTabSelected(0);
+                        Navigator.pop(context);
+                      },
+                      selected: _currentIndex == 0,
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.timer,
+                      label: 'Attendance Log',
+                      onTap: () {
+                        _onTabSelected(1);
+                        Navigator.pop(context);
+                      },
+                      selected: _currentIndex == 1,
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.list,
+                      label: 'Approvals',
+                      onTap: () {
+                        _onTabSelected(2);
+                        Navigator.pop(context);
+                      },
+                      selected: _currentIndex == 2,
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.history,
+                      label: 'History',
+                      onTap: () {
+                        _onTabSelected(3);
+                        Navigator.pop(context);
+                      },
+                      selected: _currentIndex == 3,
+                    ),
+
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Divider(color: AppColors.border),
+                    ),
+
+                    Text(
+                      "  PAYROLL & SERVICES",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.mutedForeground.withOpacity(0.5),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.banknote,
+                      label: 'Payroll',
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (_fullUser != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  PayrollHistoryScreen(user: _fullUser!),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.clock,
+                      label: 'Undertime',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                UndertimeScreen(userId: _userId ?? 0),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.zap,
+                      label: 'Overtime',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                OvertimeScreen(userId: _userId ?? 0),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildShadDrawerItem(
+                      icon: LucideIcons.calendarDays,
+                      label: 'Leave',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                LeaveScreen(userId: _userId ?? 0),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Logout
+              const Divider(color: AppColors.border),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: InkWell(
+                  onTap: _handleLogout,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          LucideIcons.logOut,
+                          color: AppColors.destructive,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: AppColors.destructive,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
       ),
       body: _getCurrentScreen(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _onTabSelected,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.access_time_outlined),
-            selectedIcon: Icon(Icons.access_time),
-            label: 'Attendance Log',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.approval_outlined),
-            selectedIcon: Icon(Icons.approval),
-            label: 'Approvals',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'History',
-          ),
-        ],
-      ),
     );
   }
 
@@ -175,7 +397,11 @@ class _MainShellState extends State<MainShell> {
   Widget _getCurrentScreen() {
     switch (_currentIndex) {
       case 0:
-        return DashboardScreen(userId: _userId ?? 0, userName: _userName);
+        return DashboardScreen(
+          userId: _userId ?? 0,
+          userName: _userName,
+          onAction: _onTabSelected,
+        );
       case 1:
         return AttendanceLogScreen(
           userId: _userId ?? 0,
@@ -188,5 +414,52 @@ class _MainShellState extends State<MainShell> {
       default:
         return DashboardScreen(userId: _userId ?? 0, userName: _userName);
     }
+  }
+
+  Widget _buildShadDrawerItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withOpacity(0.05)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? Border.all(color: AppColors.primary.withOpacity(0.1))
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? AppColors.primary : AppColors.mutedForeground,
+              ),
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.mutedForeground,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

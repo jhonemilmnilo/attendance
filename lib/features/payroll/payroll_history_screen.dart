@@ -20,6 +20,7 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
   List<PayrollEmployeeModel> _payrollHistory = [];
+  List<PayrollEmployeeModel> _draftPayrolls = [];
 
   @override
   void initState() {
@@ -30,9 +31,13 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
   Future<void> _fetchPayrollHistory() async {
     setState(() => _isLoading = true);
     try {
-      final history = await _apiService.getPayrollHistory(widget.user.userId);
+      final results = await Future.wait([
+        _apiService.getPayrollHistory(widget.user.userId),
+        _apiService.getDraftPayrolls(widget.user.userId),
+      ]);
       setState(() {
-        _payrollHistory = history;
+        _payrollHistory = results[0];
+        _draftPayrolls = results[1];
         _isLoading = false;
       });
     } catch (e) {
@@ -49,24 +54,76 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Payroll'),
           centerTitle: true,
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'History'),
-              Tab(text: 'Current Estimation'),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Draft'),
+                    if (_draftPayrolls.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${_draftPayrolls.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Tab(text: 'History'),
+              const Tab(text: 'Current Estimation'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
+            _buildDraftTab(),
             _buildHistoryTab(),
             SalaryEstimationView(user: widget.user),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDraftTab() {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_draftPayrolls.isEmpty) {
+      return _buildEmptyState(
+        icon: LucideIcons.fileClock,
+        message: 'No draft payrolls',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _fetchPayrollHistory,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _draftPayrolls.length,
+        itemBuilder: (context, index) {
+          final item = _draftPayrolls[index];
+          return _buildPayrollCard(item, isDraft: true);
+        },
       ),
     );
   }
@@ -88,15 +145,15 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({IconData? icon, String? message}) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.banknote, size: 64, color: Colors.grey[400]),
+          Icon(icon ?? LucideIcons.banknote, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
-            'No payroll records found',
+            message ?? 'No payroll records found',
             style: TextStyle(color: Colors.grey[600], fontSize: 18),
           ),
         ],
@@ -104,7 +161,7 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
     );
   }
 
-  Widget _buildPayrollCard(PayrollEmployeeModel item) {
+  Widget _buildPayrollCard(PayrollEmployeeModel item, {bool isDraft = false}) {
     final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
     final dateFormat = DateFormat('MMM dd, yyyy');
 
@@ -126,22 +183,59 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: (isDraft ? Colors.orange : Colors.blue).withOpacity(
+                    0.1,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(LucideIcons.calendarDays, color: Colors.blue),
+                child: Icon(
+                  isDraft ? LucideIcons.fileClock : LucideIcons.calendarDays,
+                  color: isDraft ? Colors.orange : Colors.blue,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item.cutoffLabel ?? 'Payroll Period',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            item.cutoffLabel ?? 'Payroll Period',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        if (isDraft) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.orange.withOpacity(0.2),
+                              ),
+                            ),
+                            child: const Text(
+                              'DRAFT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -156,10 +250,10 @@ class _PayrollHistoryScreenState extends State<PayrollHistoryScreen> {
                 children: [
                   Text(
                     currencyFormat.format(item.netPay ?? 0.0),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Colors.green,
+                      color: isDraft ? Colors.orange : Colors.green,
                     ),
                   ),
                   const Text(

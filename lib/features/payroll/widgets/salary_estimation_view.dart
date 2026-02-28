@@ -99,7 +99,7 @@ class _SalaryEstimationViewState extends State<SalaryEstimationView> {
 
         if (!isRecorded) {
           // Fetch OT requests for this specific period
-          final otRequests = await _api.getOvertimeRequests(
+          final otRequests = await _api.getOvertimeRequestsForPeriod(
             widget.user.userId,
             DateFormat('yyyy-MM-dd').format(p.start),
             DateFormat('yyyy-MM-dd').format(p.end),

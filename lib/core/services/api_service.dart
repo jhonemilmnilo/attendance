@@ -7,6 +7,9 @@ import '../models/approval_model.dart';
 import '../models/attendance_log_model.dart';
 import '../models/department_schedule_model.dart';
 import '../models/payroll_employee_model.dart';
+import '../models/leave_request_model.dart';
+import '../models/overtime_request_model.dart';
+import '../models/undertime_request_model.dart';
 import '../models/user_model.dart';
 
 /// API Service for handling all backend communications
@@ -232,10 +235,13 @@ class ApiService {
 
   // ==================== Payroll ====================
 
-  /// Get payroll records for a specific user
+  /// Get processed/posted payroll records for a specific user
   Future<List<PayrollEmployeeModel>> getPayrollHistory(int userId) async {
     final url = Uri.parse(
-      '$baseUrl/items/payroll_run_employee?filter[user_id][_eq]=$userId&sort=-cutoff_end&limit=-1',
+      '$baseUrl/items/payroll_run_employee?filter[user_id][_eq]=$userId'
+      '&filter[payroll_run_id][status][_nin]=DRAFT,draft'
+      '&fields=*,payroll_run_id.status'
+      '&sort=-cutoff_end&limit=-1',
     );
     try {
       final response = await http.get(url);
@@ -249,6 +255,36 @@ class ApiService {
       }
     } catch (e) {
       print("Get Payroll History Error: $e");
+    }
+    return [];
+  }
+
+  /// Get draft payroll records for a specific user
+  Future<List<PayrollEmployeeModel>> getDraftPayrolls(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/payroll_run_employee?filter[user_id][_eq]=$userId'
+      '&filter[payroll_run_id][status][_in]=DRAFT,draft'
+      '&fields=*,payroll_run_id.status'
+      '&sort=-cutoff_end&limit=-1',
+    );
+    try {
+      print("Fetching Draft Payrolls: $url");
+      final response = await http.get(url);
+      print("Draft Payroll Response: ${response.statusCode}");
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print(
+          "Draft Payroll Count: ${data['data'] != null ? (data['data'] as List).length : 0}",
+        );
+        if (data['data'] != null) {
+          final list = (data['data'] as List)
+              .map((e) => PayrollEmployeeModel.fromJson(e))
+              .toList();
+          return list;
+        }
+      }
+    } catch (e) {
+      print("Get Draft Payrolls Error: $e");
     }
     return [];
   }
@@ -296,7 +332,7 @@ class ApiService {
   // ==================== Overtime ====================
 
   /// Get approved overtime requests for a period
-  Future<List<Map<String, dynamic>>> getOvertimeRequests(
+  Future<List<Map<String, dynamic>>> getOvertimeRequestsForPeriod(
     int userId,
     String startDate,
     String endDate,
@@ -316,5 +352,217 @@ class ApiService {
       print("Get OT Error: $e");
     }
     return [];
+  }
+
+  /// Get all overtime requests for a specific user
+  Future<List<OvertimeRequestModel>> getOvertimeRequests(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/overtime_request?filter[user_id][_eq]=$userId&sort=-request_date,-filed_at&limit=-1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return (data['data'] as List)
+              .map((e) => OvertimeRequestModel.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Get Overtime Errors: $e");
+    }
+    return [];
+  }
+
+  Future<bool> createOvertimeRequest(OvertimeRequestModel request) async {
+    final url = Uri.parse('$baseUrl/items/overtime_request');
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(request.toJson()),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print('Error creating overtime request: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateOvertimeRequest(
+    int overtimeId,
+    OvertimeRequestModel request,
+  ) async {
+    final url = Uri.parse('$baseUrl/items/overtime_request/$overtimeId');
+    try {
+      final response = await http.patch(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(request.toJson()),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating overtime request: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteOvertimeRequest(int overtimeId) async {
+    final url = Uri.parse('$baseUrl/items/overtime_request/$overtimeId');
+    try {
+      final response = await http.delete(url);
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      print('Error deleting overtime request: $e');
+      return false;
+    }
+  }
+
+  // ==================== Undertime ====================
+
+  /// Get undertime requests for a specific user
+  Future<List<UndertimeRequestModel>> getUndertimeRequests(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/undertime_request?filter[user_id][_eq]=$userId&sort=-request_date,-filed_at&limit=-1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return (data['data'] as List)
+              .map((e) => UndertimeRequestModel.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Get Undertime Error: $e");
+    }
+    return [];
+  }
+
+  /// Create a new undertime request
+  Future<bool> createUndertimeRequest(UndertimeRequestModel request) async {
+    final url = Uri.parse('$baseUrl/items/undertime_request');
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(request.toJson()),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Create Undertime Error: $e");
+      return false;
+    }
+  }
+
+  /// Update an existing undertime request
+  Future<bool> updateUndertimeRequest(
+    int undertimeId,
+    UndertimeRequestModel request,
+  ) async {
+    final url = Uri.parse('$baseUrl/items/undertime_request/$undertimeId');
+    try {
+      // Only send editable fields
+      final body = request.toJson();
+      body.remove(
+        'status',
+      ); // Usually status is handled by approver, but user can cancel?
+      // For now, let's keep it simple and just send the whole thing if the status is still pending
+
+      final response = await http.patch(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Update Undertime Error: $e");
+      return false;
+    }
+  }
+
+  /// Delete an undertime request
+  Future<bool> deleteUndertimeRequest(int undertimeId) async {
+    final url = Uri.parse('$baseUrl/items/undertime_request/$undertimeId');
+    try {
+      final response = await http.delete(url);
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      print("Delete Undertime Error: $e");
+      return false;
+    }
+  }
+
+  // ==================== Leave ====================
+
+  /// Get leave requests for a specific user
+  Future<List<LeaveRequestModel>> getLeaveRequests(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/leave_request?filter[user_id][_eq]=$userId&sort=-leave_start,-filed_at&limit=-1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null) {
+          return (data['data'] as List)
+              .map((e) => LeaveRequestModel.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Get Leave Error: $e");
+    }
+    return [];
+  }
+
+  /// Create a new leave request
+  Future<bool> createLeaveRequest(LeaveRequestModel request) async {
+    final url = Uri.parse('$baseUrl/items/leave_request');
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(request.toJson()),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Create Leave Error: $e");
+      return false;
+    }
+  }
+
+  /// Update an existing leave request
+  Future<bool> updateLeaveRequest(
+    int leaveId,
+    LeaveRequestModel request,
+  ) async {
+    final url = Uri.parse('$baseUrl/items/leave_request/$leaveId');
+    try {
+      final response = await http.patch(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(request.toJson()),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Update Leave Error: $e");
+      return false;
+    }
+  }
+
+  /// Delete a leave request
+  Future<bool> deleteLeaveRequest(int leaveId) async {
+    final url = Uri.parse('$baseUrl/items/leave_request/$leaveId');
+    try {
+      final response = await http.delete(url);
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      print("Delete Leave Error: $e");
+      return false;
+    }
   }
 }

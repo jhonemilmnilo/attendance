@@ -12,18 +12,21 @@ import '../payroll/payroll_history_screen.dart';
 class DashboardScreen extends StatefulWidget {
   final int userId;
   final String userName;
+  final Function(int)? onAction;
 
   const DashboardScreen({
     super.key,
     required this.userId,
     required this.userName,
+    this.onAction,
   });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   final ApiService _api = ApiService();
   AttendanceLogModel? _currentLog;
   UserModel? _fullUser;
@@ -32,11 +35,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchData();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchData();
+    }
+  }
+
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+    if (_currentLog == null) {
+      setState(() => _isLoading = true);
+    }
     await Future.wait([_fetchTodayLog(), _fetchUserInfo()]);
     if (mounted) {
       setState(() => _isLoading = false);
@@ -51,7 +70,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchTodayLog() async {
-    setState(() => _isLoading = true);
     final log = await _api.getTodayLog(widget.userId);
     if (mounted) {
       setState(() {
@@ -81,11 +99,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           .animate()
                           .fadeIn(delay: 200.ms)
                           .scale(begin: const Offset(0.9, 0.9)),
-                const SizedBox(height: 32),
-                _buildQuickActions()
-                    .animate()
-                    .fadeIn(delay: 400.ms)
-                    .slideY(begin: 0.1),
                 const SizedBox(height: 32),
                 _isLoading
                     ? _buildTodaySummarySkeleton()
@@ -136,11 +149,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-        ),
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
-          child: const Icon(LucideIcons.user, color: AppColors.primary),
         ),
       ],
     );
@@ -249,7 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Time Log',
                 subtitle: 'Check In/Out',
                 color: Colors.blue,
-                onTap: () {},
+                onTap: () => widget.onAction?.call(1),
               ),
             ),
             const SizedBox(width: 16),
@@ -259,7 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'History',
                 subtitle: 'View Logs',
                 color: Colors.purple,
-                onTap: () {},
+                onTap: () => widget.onAction?.call(3),
               ),
             ),
           ],
@@ -270,14 +278,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           label: 'Payroll',
           subtitle: 'View Payslips & Salary History',
           color: Colors.green,
-          onTap: () {
+          onTap: () async {
             if (_fullUser == null) return;
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => PayrollHistoryScreen(user: _fullUser!),
               ),
             );
+            _fetchData();
           },
         ),
       ],
@@ -416,7 +425,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatusCardSkeleton() {
     return Container(
-          height: 180,
+          height: 220,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.grey.withOpacity(0.05),
