@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -36,17 +37,33 @@ class _DashboardScreenState extends State<DashboardScreen>
   UserModel? _user;
   bool _isLoading = true;
 
+  // Clock variables
+  Timer? _clockTimer;
+  DateTime _currentTime = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startClock();
     _fetchData();
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _startClock() {
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
+    });
   }
 
   @override
@@ -151,6 +168,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ).animate().fadeIn(),
                 ),
                 const SizedBox(height: 24),
+                _buildLiveClockCard().animate().fadeIn().scale(delay: 50.ms),
+                const SizedBox(height: 16),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 500),
                   child: _isLoading
@@ -355,6 +374,59 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveClockCard() {
+    final timeFormat = DateFormat('hh:mm:ss');
+    final amPm = DateFormat('a').format(_currentTime);
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            "System Time",
+            style: ShadTheme.of(context).textTheme.muted.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              letterSpacing: 1,
+              color: AppColors.primary.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                timeFormat.format(_currentTime),
+                style: ShadTheme.of(context).textTheme.h1.copyWith(
+                  fontSize: 42,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                amPm,
+                style: ShadTheme.of(context).textTheme.h3.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
