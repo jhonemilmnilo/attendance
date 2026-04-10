@@ -78,10 +78,22 @@ class SalaryService {
     
     final schedule = await _api.getDepartmentSchedule(user.departmentId);
     final payrolls = await _api.getPayrollHistory(user.userId);
+    final userWage = await _api.getUserWage(user.userId);
     
-    if (schedule == null || payrolls.isEmpty) return null;
+    if (schedule == null || userWage == null) return null;
 
-    final hourlyRate = payrolls.first.hourlyRate;
+    // Calculate dynamic hourly rate based on scheduled hours
+    // (Total Shift Minutes - 60 mins lunch) / 60 = Total Scheduled Work Hours
+    final shiftDuration = DateTime(2024, 1, 1, schedule.workEnd.hour, schedule.workEnd.minute)
+        .difference(DateTime(2024, 1, 1, schedule.workStart.hour, schedule.workStart.minute))
+        .inMinutes;
+    
+    final scheduledWorkMinutes = shiftDuration - 60;
+    
+    // Safety check: Fallback to 8 hours (480 mins) if schedule is zero or negative
+    final divisorMinutes = scheduledWorkMinutes > 0 ? scheduledWorkMinutes : 480;
+    final hourlyRate = userWage.dailyWage / (divisorMinutes / 60.0);
+
     final calculator = SalaryCalculator(
       hourlyRate: hourlyRate,
       schedule: schedule,
@@ -117,10 +129,14 @@ class SalaryService {
       total += result['netPay'];
       breakdown.add({
         'date': log.formattedDate,
+        'grossBasicPay': result['grossBasicPay'],
         'netPay': result['netPay'],
         'late': result['lateMinutes'],
+        'lateDeduction': result['lateDeduction'],
         'ot': result['otMinutes'],
+        'otPay': result['otPay'],
         'undertime': result['undertimeMinutes'],
+        'undertimeDeduction': result['undertimeDeduction'],
       });
     }
 

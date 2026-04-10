@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/models/attendance_log_model.dart';
+import '../../core/models/department_schedule_model.dart';
 import '../../core/models/user_model.dart';
 import '../../core/models/user_wage_model.dart';
 import '../../core/services/api_service.dart';
@@ -34,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   AttendanceLogModel? _currentLog;
   SalaryEstimation? _salaryEstimation;
   UserWageModel? _userWage;
+  DepartmentScheduleModel? _schedule;
   UserModel? _user;
   bool _isLoading = true;
 
@@ -95,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       await Future.wait([
         _fetchSalaryEstimation(),
         _fetchUserWage(),
+        _fetchSchedule(),
       ]);
     }
 
@@ -138,6 +141,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       setState(() {
         _userWage = wage;
+      });
+    }
+  }
+
+  Future<void> _fetchSchedule() async {
+    if (_user == null) return;
+    final schedule = await _api.getDepartmentSchedule(_user!.departmentId);
+    if (mounted) {
+      setState(() {
+        _schedule = schedule;
       });
     }
   }
@@ -187,6 +200,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                           key: const ValueKey('data_summary'),
                         ).animate().fadeIn().slideY(begin: 0.1),
                 ),
+                const SizedBox(height: 24),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 700),
+                  child: _isLoading
+                      ? _buildScheduleCardSkeleton()
+                      : _buildScheduleCard().animate().fadeIn().slideY(begin: 0.1, delay: 200.ms),
+                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -643,6 +664,167 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildScheduleCard() {
+    if (_schedule == null) return const SizedBox.shrink();
+
+    String formatTime(TimeOfDay? time) {
+      if (time == null) return '--:--';
+      final now = DateTime.now();
+      final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+      return DateFormat('hh:mm a').format(dt);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            "Official Schedule",
+            style: ShadTheme.of(context).textTheme.large.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border.withOpacity(0.5)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      LucideIcons.calendarClock,
+                      color: AppColors.primary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Regular Shift",
+                          style: ShadTheme.of(context).textTheme.muted.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                        ),
+                        Text(
+                          "${formatTime(_schedule!.workStart)} - ${formatTime(_schedule!.workEnd)}",
+                          style: ShadTheme.of(context).textTheme.h3.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 20,
+                                color: AppColors.primary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildScheduleInfoItem(
+                    LucideIcons.utensils,
+                    "Lunch Break",
+                    "${formatTime(_schedule!.lunchStart)} - ${formatTime(_schedule!.lunchEnd)}",
+                  ),
+                  _buildScheduleInfoItem(
+                    LucideIcons.info,
+                    "Workdays",
+                    _schedule!.workdaysNote ?? "${_schedule!.workingDays} Days/Week",
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScheduleInfoItem(IconData icon, String label, String value) {
+    return Expanded(
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: AppColors.mutedForeground),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.mutedForeground,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleCardSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 140,
+          height: 22,
+          margin: const EdgeInsets.only(left: 4, bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+        Container(
+          width: double.infinity,
+          height: 160,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border.withOpacity(0.5)),
+          ),
+        ),
+      ],
+    )
+        .animate(onPlay: (c) => c.repeat())
+        .shimmer(duration: 2.seconds, color: Colors.grey.withAlpha(20));
   }
 
   Widget _buildStatusCardSkeleton({Key? key}) {

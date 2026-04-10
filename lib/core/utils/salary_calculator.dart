@@ -92,13 +92,43 @@ class SalaryCalculator {
         scheduledWorkMinutes - lateMinutes - undertimeMinutes + otMinutes;
     if (netWorkMinutes < 0) netWorkMinutes = 0;
 
-    double netPay = (netWorkMinutes / 60.0) * hourlyRate;
+    // Check for "Total Effort" Offset:
+    // 1. If (Time Out - Time In - 60) >= scheduledWorkMinutes
+    // 2. OR if Time Out hour < Time In hour (indicator of working past midnight)
+    final actualWorkedMinutes = to.difference(ti).inMinutes - 60;
+    final bool isCrossMidnight = to.hour < ti.hour && to.day != ti.day;
+    // We check to.day != ti.day but also the user's "out < in" logic:
+    final bool isOvernightShortcut = to.hour < ti.hour;
+    
+    final bool isFullDayFulfilled =
+        (actualWorkedMinutes >= scheduledWorkMinutes) || isOvernightShortcut;
+
+    // Split calculations for transparency
+    double grossBasicPay = (scheduledWorkMinutes / 60.0) * hourlyRate;
+    double lateDeduction = (lateMinutes / 60.0) * hourlyRate;
+    double undertimeDeduction = (undertimeMinutes / 60.0) * hourlyRate;
+    double otPay = (otMinutes / 60.0) * hourlyRate;
+
+    // Apply offset logic: Zero out deductions if they completed the required total hours
+    if (isFullDayFulfilled) {
+      lateDeduction = 0.0;
+      undertimeDeduction = 0.0;
+    }
+
+    // Final Net Pay for this day
+    double netPay = grossBasicPay - lateDeduction - undertimeDeduction + otPay;
 
     return {
       'workMinutes': scheduledWorkMinutes,
       'lateMinutes': lateMinutes,
       'undertimeMinutes': undertimeMinutes,
       'otMinutes': otMinutes,
+      'actualWorkedMinutes': actualWorkedMinutes,
+      'isFullDayFulfilled': isFullDayFulfilled,
+      'grossBasicPay': grossBasicPay,
+      'lateDeduction': lateDeduction,
+      'undertimeDeduction': undertimeDeduction,
+      'otPay': otPay,
       'netPay': netPay,
     };
   }
