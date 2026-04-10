@@ -16,7 +16,9 @@ import 'core/models/user_model.dart';
 import 'core/services/api_service.dart';
 import 'core/theme/shadcn_ui.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.init();
   runApp(const AttendanceApp());
 }
 

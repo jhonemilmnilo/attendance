@@ -14,7 +14,32 @@ import '../models/user_model.dart';
 
 /// API Service for handling all backend communications
 class ApiService {
-  static const String baseUrl = 'https://goatedcodoer.tail054015.ts.net/vertex';
+  static const String primaryUrl =
+      'https://goatedcodoer.tail054015.ts.net/vertex';
+  static const String backupUrl = 'http://goatedcodoer:8090';
+  static String baseUrl = primaryUrl;
+
+  /// Initializes the API base URL by checking if the primary URL is reachable.
+  /// Falls back to the backup URL if the primary is down.
+  static Future<void> init() async {
+    try {
+      // Try to ping the primary URL (Directus typically has a /server/ping or we can just check the base)
+      final response = await http
+          .get(Uri.parse('$primaryUrl/server/ping'))
+          .timeout(const Duration(seconds: 2));
+
+      if (response.statusCode == 200) {
+        baseUrl = primaryUrl;
+        print("API Service: Using primary URL ($baseUrl)");
+      } else {
+        baseUrl = backupUrl;
+        print("API Service: Primary down, falling back to backup ($baseUrl)");
+      }
+    } catch (e) {
+      baseUrl = backupUrl;
+      print("API Service: Connection failed, using backup URL ($baseUrl)");
+    }
+  }
 
   /// Formats a DateTime to ISO 8601 string WITH timezone offset.
   /// This prevents the server from misinterpreting local time as UTC.

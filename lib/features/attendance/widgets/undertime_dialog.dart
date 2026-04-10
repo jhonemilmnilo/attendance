@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import '../../../core/models/department_schedule_model.dart';
 import '../../../core/models/undertime_request_model.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/api_service.dart';
@@ -31,6 +32,7 @@ class _UndertimeDialogState extends State<UndertimeDialog> {
   TimeOfDay _actualTimeout = const TimeOfDay(hour: 16, minute: 0);
   int _durationMinutes = 60;
   bool _isSaving = false;
+  bool _isLoadingSchedule = true;
 
   @override
   void initState() {
@@ -52,8 +54,38 @@ class _UndertimeDialogState extends State<UndertimeDialog> {
         hour: int.parse(actualParts[0]),
         minute: int.parse(actualParts[1]),
       );
+      _isLoadingSchedule = false;
+    } else {
+      _loadSchedule();
     }
     _calculateDuration();
+  }
+
+  Future<void> _loadSchedule() async {
+    try {
+      final DepartmentScheduleModel? schedule = await _api
+          .getDepartmentSchedule(widget.user.departmentId);
+      if (mounted && schedule != null) {
+        setState(() {
+          _schedTimeout = schedule.workEnd;
+
+          // Suggest actual timeout 1 hour before scheduled
+          int newHour = _schedTimeout.hour - 1;
+          if (newHour < 0) newHour = 0;
+          _actualTimeout = TimeOfDay(
+            hour: newHour,
+            minute: _schedTimeout.minute,
+          );
+
+          _isLoadingSchedule = false;
+        });
+        _calculateDuration();
+      } else {
+        if (mounted) setState(() => _isLoadingSchedule = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingSchedule = false);
+    }
   }
 
   void _calculateDuration() {
@@ -158,123 +190,135 @@ class _UndertimeDialogState extends State<UndertimeDialog> {
       description: const Text(
         'Please provide the details for your undertime request.',
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            _buildField(
-              label: 'Request Date',
-              child: ShadButton.outline(
-                width: double.infinity,
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _requestDate,
-                    firstDate: DateTime.now().subtract(
-                      const Duration(days: 30),
-                    ),
-                    lastDate: DateTime.now().add(const Duration(days: 30)),
-                  );
-                  if (picked != null) setState(() => _requestDate = picked);
-                },
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(DateFormat('MMM dd, yyyy').format(_requestDate)),
-                    const Icon(Icons.calendar_today, size: 16),
-                  ],
-                ),
+      child: _isLoadingSchedule
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    label: 'Scheduled Timeout',
-                    child: ShadButton.outline(
-                      onPressed: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: _schedTimeout,
-                        );
-                        if (picked != null) {
-                          setState(() => _schedTimeout = picked);
-                          _calculateDuration();
-                        }
-                      },
-                      child: Text(_formatTime(_schedTimeout)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildField(
-                    label: 'Actual Timeout',
-                    child: ShadButton.outline(
-                      onPressed: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: _actualTimeout,
-                        );
-                        if (picked != null) {
-                          setState(() => _actualTimeout = picked);
-                          _calculateDuration();
-                        }
-                      },
-                      child: Text(_formatTime(_actualTimeout)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withOpacity(0.1)),
-              ),
-              child: Row(
+            )
+          : SingleChildScrollView(
+              child: Column(
                 children: [
-                  const Icon(
-                    Icons.timer_outlined,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Duration:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${(_durationMinutes / 60).floor()}h ${_durationMinutes % 60}m',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
-                      fontSize: 16,
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Request Date',
+                    child: ShadButton.outline(
+                      width: double.infinity,
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _requestDate,
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 30),
+                          ),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 30),
+                          ),
+                        );
+                        if (picked != null)
+                          setState(() => _requestDate = picked);
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(DateFormat('MMM dd, yyyy').format(_requestDate)),
+                          const Icon(Icons.calendar_today, size: 16),
+                        ],
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildField(
+                          label: 'Scheduled Timeout',
+                          child: ShadButton.outline(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: _schedTimeout,
+                              );
+                              if (picked != null) {
+                                setState(() => _schedTimeout = picked);
+                                _calculateDuration();
+                              }
+                            },
+                            child: Text(_formatTime(_schedTimeout)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildField(
+                          label: 'Actual Timeout',
+                          child: ShadButton.outline(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: _actualTimeout,
+                              );
+                              if (picked != null) {
+                                setState(() => _actualTimeout = picked);
+                                _calculateDuration();
+                              }
+                            },
+                            child: Text(_formatTime(_actualTimeout)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Duration:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${(_durationMinutes / 60).floor()}h ${_durationMinutes % 60}m',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Reason',
+                    child: ShadInput(
+                      controller: _reasonController,
+                      placeholder: const Text(
+                        'e.g., Medical appointment, Family emergency',
+                      ),
+                      maxLines: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            _buildField(
-              label: 'Reason',
-              child: ShadInput(
-                controller: _reasonController,
-                placeholder: const Text(
-                  'e.g., Medical appointment, Family emergency',
-                ),
-                maxLines: 3,
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
       actions: [
         ShadButton.ghost(
           onPressed: () => Navigator.pop(context),

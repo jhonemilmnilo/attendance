@@ -3,8 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/salary_service.dart';
 import '../../../core/theme/shadcn_ui.dart';
-import '../../../core/utils/salary_calculator.dart';
 
 class SalaryEstimationView extends StatefulWidget {
   final UserModel user;
@@ -15,26 +15,10 @@ class SalaryEstimationView extends StatefulWidget {
   State<SalaryEstimationView> createState() => _SalaryEstimationViewState();
 }
 
-class PeriodEstimation {
-  final DateTime start;
-  final DateTime end;
-  final String label;
-  double totalPay;
-  List<Map<String, dynamic>> dailyLogs;
-
-  PeriodEstimation({
-    required this.start,
-    required this.end,
-    required this.label,
-    this.totalPay = 0.0,
-    this.dailyLogs = const [],
-  });
-}
-
 class _SalaryEstimationViewState extends State<SalaryEstimationView> {
-  final ApiService _api = ApiService();
+  final SalaryService _salaryService = SalaryService();
   bool _isLoading = true;
-  List<PeriodEstimation> _pendingEstimations = [];
+  List<SalaryEstimation> _pendingEstimations = [];
   String? _error;
   int _selectedPeriodIndex = 0;
 
@@ -52,149 +36,26 @@ class _SalaryEstimationViewState extends State<SalaryEstimationView> {
     });
 
     try {
-      // 1. Fetch common data
-      final logs = await _api.getHistory(widget.user.userId, limit: 100);
-      final schedule = await _api.getDepartmentSchedule(
-        widget.user.departmentId,
-      );
-      final payrolls = await _api.getPayrollHistory(widget.user.userId);
+      final estimations = await _salaryService.getRecentEstimations(widget.user);
 
-      if (schedule == null) {
+      if (mounted) {
         setState(() {
-          _error = "Department schedule not found.";
+          _pendingEstimations = estimations;
           _isLoading = false;
-        });
-        return;
-      }
-
-      if (payrolls.isEmpty) {
-        setState(() {
-          _error = "No payroll history found. Hourly rate is unknown.";
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final hourlyRate = payrolls.first.hourlyRate;
-      final calculator = SalaryCalculator(
-        hourlyRate: hourlyRate,
-        schedule: schedule,
-      );
-
-      // 2. Generate periods to check (Current + last 2)
-      final periods = _generateCheckPeriods(DateTime.now(), 3);
-      List<PeriodEstimation> pending = [];
-
-      for (var p in periods) {
-        // Check if this period exists in recorded payroll
-        bool isRecorded = payrolls.any((pr) {
-          // Compare dates (ignoring time)
-          return pr.cutoffStart.year == p.start.year &&
-              pr.cutoffStart.month == p.start.month &&
-              pr.cutoffStart.day == p.start.day &&
-              pr.cutoffEnd.year == p.end.year &&
-              pr.cutoffEnd.month == p.end.month &&
-              pr.cutoffEnd.day == p.end.day;
-        });
-
-        if (!isRecorded) {
-          // Fetch OT requests for this specific period
-          final otRequests = await _api.getOvertimeRequestsForPeriod(
-            widget.user.userId,
-            DateFormat('yyyy-MM-dd').format(p.start),
-            DateFormat('yyyy-MM-dd').format(p.end),
-          );
-
-          // Calculate estimations for this period
-          double total = 0.0;
-          List<Map<String, dynamic>> breakdown = [];
-
-          final periodLogs = logs.where((l) {
-            try {
-              final logDate = DateTime.parse(l.logDate);
-              // Normalize dates for comparison
-              final d = DateTime(logDate.year, logDate.month, logDate.day);
-              final s = DateTime(p.start.year, p.start.month, p.start.day);
-              final e = DateTime(p.end.year, p.end.month, p.end.day);
-
-              return (d.isAtSameMomentAs(s) || d.isAfter(s)) &&
-                  (d.isAtSameMomentAs(e) || d.isBefore(e)) &&
-                  l.timeOut != null;
-            } catch (_) {
-              return false;
-            }
-          }).toList();
-
-          for (final log in periodLogs) {
-            final result = calculator.calculateDaily(log, otRequests);
-            total += result['netPay'];
-            breakdown.add({
-              'date': log.formattedDate,
-              'netPay': result['netPay'],
-              'late': result['lateMinutes'],
-              'ot': result['otMinutes'],
-              'undertime': result['undertimeMinutes'],
-            });
+          if (_selectedPeriodIndex >= estimations.length) {
+            _selectedPeriodIndex = 0;
           }
-
-          if (breakdown.isNotEmpty ||
-              p.start.isAfter(
-                DateTime.now().subtract(const Duration(days: 15)),
-              )) {
-            p.totalPay = total;
-            p.dailyLogs = breakdown;
-            pending.add(p);
-          }
-        }
+        });
       }
-
-      setState(() {
-        _pendingEstimations = pending;
-        _isLoading = false;
-        if (_selectedPeriodIndex >= pending.length) {
-          _selectedPeriodIndex = 0;
-        }
-      });
     } catch (e) {
       debugPrint("Estimation Error: $e");
-      setState(() {
-        _error = "An error occurred while loading estimations.";
-        _isLoading = false;
-      });
-    }
-  }
-
-  List<PeriodEstimation> _generateCheckPeriods(DateTime from, int count) {
-    List<PeriodEstimation> results = [];
-    DateTime current = from;
-
-    for (int i = 0; i < count; i++) {
-      DateTime start;
-      DateTime end;
-
-      if (current.day >= 11 && current.day <= 25) {
-        start = DateTime(current.year, current.month, 11);
-        end = DateTime(current.year, current.month, 25);
-      } else if (current.day >= 26) {
-        start = DateTime(current.year, current.month, 26);
-        end = DateTime(current.year, current.month + 1, 10);
-      } else {
-        start = DateTime(current.year, current.month - 1, 26);
-        end = DateTime(current.year, current.month, 10);
+      if (mounted) {
+        setState(() {
+          _error = "An error occurred while loading estimations.";
+          _isLoading = false;
+        });
       }
-
-      final label =
-          "${DateFormat('MMM dd').format(start)} - ${DateFormat('MMM dd').format(end)}";
-
-      // Check if duplicate before adding
-      if (!results.any((r) => r.label == label)) {
-        results.add(PeriodEstimation(start: start, end: end, label: label));
-      }
-
-      // Move current back to before this period
-      current = start.subtract(const Duration(days: 1));
     }
-    return results;
   }
 
   @override
@@ -301,7 +162,7 @@ class _SalaryEstimationViewState extends State<SalaryEstimationView> {
     );
   }
 
-  Widget _buildSummaryCard(PeriodEstimation p, NumberFormat formatter) {
+  Widget _buildSummaryCard(SalaryEstimation p, NumberFormat formatter) {
     return ShadCard(
       padding: const EdgeInsets.all(24),
       child: Column(

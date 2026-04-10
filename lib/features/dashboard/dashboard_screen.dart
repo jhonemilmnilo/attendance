@@ -4,7 +4,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/models/attendance_log_model.dart';
+import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/salary_service.dart';
 import '../../core/theme/shadcn_ui.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -26,7 +28,10 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with WidgetsBindingObserver {
   final ApiService _api = ApiService();
+  final SalaryService _salaryService = SalaryService();
   AttendanceLogModel? _currentLog;
+  SalaryEstimation? _salaryEstimation;
+  UserModel? _user;
   bool _isLoading = true;
 
   @override
@@ -61,9 +66,28 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (_currentLog == null) {
       setState(() => _isLoading = true);
     }
-    await _fetchTodayLog();
+    
+    await Future.wait([
+      _fetchUser(),
+      _fetchTodayLog(),
+    ]);
+
+    if (_user != null) {
+      await _fetchSalaryEstimation();
+    }
+
     if (mounted) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchUser() async {
+    if (_user != null) return;
+    final user = await _api.getUser(widget.userId);
+    if (mounted) {
+      setState(() {
+        _user = user;
+      });
     }
   }
 
@@ -72,6 +96,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       setState(() {
         _currentLog = log;
+      });
+    }
+  }
+
+  Future<void> _fetchSalaryEstimation() async {
+    if (_user == null) return;
+    final estimation = await _salaryService.getCurrentPeriodEstimation(_user!);
+    if (mounted) {
+      setState(() {
+        _salaryEstimation = estimation;
       });
     }
   }
@@ -100,6 +134,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                       : _buildStatusCard(
                           key: const ValueKey('data_status'),
                         ).animate().fadeIn(),
+                ),
+                const SizedBox(height: 24),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 500),
+                  child: _isLoading
+                      ? _buildSalaryCardSkeleton()
+                      : _buildSalaryCard().animate().fadeIn().scale(delay: 100.ms),
                 ),
                 const SizedBox(height: 32),
                 AnimatedSwitcher(
@@ -304,6 +345,104 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildSalaryCard() {
+    if (_salaryEstimation == null) return const SizedBox.shrink();
+
+    final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withBlue(150)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Estimated Salary",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  "Current Cutoff",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            currencyFormat.format(_salaryEstimation!.totalPay),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                LucideIcons.calendarDays,
+                size: 14,
+                color: Colors.white.withOpacity(0.7),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _salaryEstimation!.label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                "Based on latest logs",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTodaySummary({Key? key}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,6 +588,52 @@ class _DashboardScreenState extends State<DashboardScreen>
         )
         .animate(onPlay: (c) => c.repeat())
         .shimmer(duration: 2.seconds, color: Colors.grey.withAlpha(20));
+  }
+
+  Widget _buildSalaryCardSkeleton() {
+    return Container(
+      width: double.infinity,
+      height: 140,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 120,
+            height: 14,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: 180,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const Spacer(),
+          Container(
+            width: 150,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ],
+      ),
+    )
+    .animate(onPlay: (c) => c.repeat())
+    .shimmer(duration: 2.seconds, color: Colors.grey.withAlpha(20));
   }
 
   Widget _buildTodaySummarySkeleton({Key? key}) {
