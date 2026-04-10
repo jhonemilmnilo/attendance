@@ -11,6 +11,7 @@ import '../models/leave_request_model.dart';
 import '../models/overtime_request_model.dart';
 import '../models/undertime_request_model.dart';
 import '../models/user_model.dart';
+import '../models/user_wage_model.dart';
 
 /// API Service for handling all backend communications
 class ApiService {
@@ -283,6 +284,27 @@ class ApiService {
     }
     return [];
   }
+
+
+  /// Get current wage management for a user
+  Future<UserWageModel?> getUserWage(int userId) async {
+    final url = Uri.parse(
+      '$baseUrl/items/user_wage_management?filter[user_id][_eq]=$userId&limit=1',
+    );
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && (data['data'] as List).isNotEmpty) {
+          return UserWageModel.fromJson(data['data'][0]);
+        }
+      }
+    } catch (e) {
+      print("Get User Wage Error: $e");
+    }
+    return null;
+  }
+
 
   /// Get draft payroll records for a specific user
   Future<List<PayrollEmployeeModel>> getDraftPayrolls(int userId) async {

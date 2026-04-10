@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/models/attendance_log_model.dart';
 import '../../core/models/user_model.dart';
+import '../../core/models/user_wage_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/salary_service.dart';
 import '../../core/theme/shadcn_ui.dart';
@@ -31,6 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   final SalaryService _salaryService = SalaryService();
   AttendanceLogModel? _currentLog;
   SalaryEstimation? _salaryEstimation;
+  UserWageModel? _userWage;
   UserModel? _user;
   bool _isLoading = true;
 
@@ -73,7 +75,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     ]);
 
     if (_user != null) {
-      await _fetchSalaryEstimation();
+      await Future.wait([
+        _fetchSalaryEstimation(),
+        _fetchUserWage(),
+      ]);
     }
 
     if (mounted) {
@@ -106,6 +111,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       setState(() {
         _salaryEstimation = estimation;
+      });
+    }
+  }
+
+  Future<void> _fetchUserWage() async {
+    if (_user == null) return;
+    final wage = await _api.getUserWage(_user!.userId);
+    if (mounted) {
+      setState(() {
+        _userWage = wage;
       });
     }
   }
@@ -401,14 +416,45 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            currencyFormat.format(_salaryEstimation!.totalPay),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                currencyFormat.format(_salaryEstimation!.totalPay),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1,
+                ),
+              ),
+              if (_userWage != null) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.banknote, size: 10, color: Colors.white.withOpacity(0.9)),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${currencyFormat.format(_userWage!.dailyWage)}/day",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 8),
           Row(
